@@ -1,0 +1,8 @@
+numpy
+scipy
+pandas
+transformers
+music21
+librosa
+pyworld
+torch
