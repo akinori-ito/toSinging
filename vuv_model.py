@@ -24,9 +24,9 @@ class VUVmodel:
         wav_data, sr = sf.read(wav_file_path) 
     
         if sr != self.sampling_rate:
-            print(f"注意: サンプリングレート {sr}Hz を {self.samplint_rate}Hz にリサンプリングします。")
-            wav_data = librosa.resample(wav_data, orig_sr=sr, target_sr=self.samplint_rate)
-            sr = self.samplintg_rate
+            print(f"注意: サンプリングレート {sr}Hz を {self.sampling_rate}Hz にリサンプリングします。")
+            wav_data = librosa.resample(wav_data, orig_sr=sr, target_sr=self.sampling_rate)
+            sr = self.sampling_rate
         
         # 音声データをHuBERTの入力形式に変換
         inputs = self.feature_extractor(wav_data, sampling_rate=sr, return_tensors="pt")
