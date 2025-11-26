@@ -38,18 +38,53 @@ def solve_damped_spring_motion(t,f_data,initial_state):
     u_t = solution[:, 0]
     return u_t
 
+def resonate(t,u_data):
+    # ==========================================
+    # System 2: 共振系（入力 u(t) -> 出力 x(t)）
+    # ==========================================
+    # 設定: omega_1 を System 1 の固有振動数に近づけて "共振" させてみます
+    # System 1 の固有振動数
+    omega_1 = 50  
+    zeta_1 = 0.15   # 減衰比 (小さいほどよく響く)
+    
+    # System 2 の運動方程式係数
+    # x'' + 2*zeta*w1 * x' + w1^2 * x = w1^2 * u_in
+    w1_sq = omega_1**2
+    damping_coef2 = 2 * zeta_1 * omega_1
+
+    # ★重要: System 1 の出力 u_data を System 2 の入力関数にする
+    u_func = interp1d(t, u_data, kind='linear', fill_value="extrapolate")
+
+    def model_sys2(state, t):
+        x, v = state
+        input_val = u_func(t) # System 1 の計算結果を入力として取得
+        
+        dxdt = v
+        dvdt = w1_sq * (input_val - x) - damping_coef2 * v
+        return [dxdt, dvdt]
+
+    # System 2 を解く
+    sol2 = odeint(model_sys2, [0, 0], t)
+    x_data = sol2[:, 0] # これが最終的な出力
+    return x_data
+
+def maximize(x,a=1):
+    return 2*np.arctan(x*a)/np.pi
+
 def add_dumping(x,maxdiff=20):
     t = np.arange(len(x))*0.005
     initial_state = [0.0, 0.0]
     u_t = solve_damped_spring_motion(t,x,initial_state)
+    u_t = resonate(t,u_t)
     for i in range(len(u_t)):
         if x[i] == 0:
             u_t[i] = 0
-        else:
-            d = abs(u_t[i]-x[i])
-            if d > maxdiff:
-                u_t[i] = x[i]+(u_t[i]-x[i])/d*maxdiff
-    return u_t
+    y = u_t - x
+    ymax = np.max(np.abs(y))
+    if ymax > maxdiff:
+        y = maximize(y/ymax,2.0)*maxdiff
+
+    return x+y
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
