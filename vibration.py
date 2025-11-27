@@ -9,7 +9,6 @@ def solve_damped_spring_motion(t,f_data,initial_state):
     m = 0.1       # 質量 [kg]
     k = 90.0      # ばね定数 [N/m]
     c = 1.8       # ★追加: 粘性減衰係数 [N*s/m] (値を大きくすると早く止まります)
-    
     omega0_sq = k / m  # k/m
     damping_term = c / m # c/m
 
@@ -71,7 +70,30 @@ def resonate(t,u_data):
 def maximize(x,a=1):
     return 2*np.arctan(x*a)/np.pi
 
-def add_dumping(x,maxdiff=20):
+def true_regions(mask):
+    # 1. 変化点を検出するために、前後に False をパディングする
+    # これにより、配列の最初や最後が True の場合も端を検出できます
+    padded = np.concatenate(([False], mask, [False]))
+
+    # 2. 差分をとる (True=1, False=0 として計算される)
+    # 1  : False -> True (区間の開始)
+    # -1 : True -> False (区間の終了)
+    diffs = np.diff(padded.astype(int))
+
+    # 3. 開始点と終了点のインデックスを取得
+    starts = np.where(diffs == 1)[0]
+    ends = np.where(diffs == -1)[0]
+
+    # 4. ペアにしてリスト化
+    return list(zip(starts, ends))
+
+def stable_region(vals,threshold=1e-3):
+    n = len(vals)
+    x = np.abs(vals[1:n]-vals[0:(n-1)])
+    regions = true_regions(x < threshold)
+    return regions
+
+def add_dumping(x,maxdiff=20,vibrato_speed=5.0,vibrato_depth=3.0):
     t = np.arange(len(x))*0.005
     initial_state = [0.0, 0.0]
     u_t = solve_damped_spring_motion(t,x,initial_state)
@@ -83,7 +105,13 @@ def add_dumping(x,maxdiff=20):
     ymax = np.max(np.abs(y))
     if ymax > maxdiff:
         y = maximize(y/ymax,2.0)*maxdiff
-
+    s_regions = stable_region(y,1e-1)
+    w_vib = 2*np.pi*vibrato_speed  # vibrato (Hz)
+    for i in range(len(s_regions)):
+        b,e = s_regions[i]
+        if e-b > 50:
+            t = np.linspace(0,(e-b)*0.005,e-b)
+            y[b:e] = np.sin(w_vib*t)*vibrato_depth # Frequency modulation (Hz)
     return x+y
 
 if __name__ == "__main__":
