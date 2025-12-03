@@ -34,7 +34,12 @@ def analyze(wavfile=None,w=None,sr=None,fftspec=False):
         sp = sp/np.max(sp)*np.max(sp_world)
     return({"spectrum": sp, "aperiodicity": ap, "f0": f0, "rate": sr})
 
-def synthesize(anl,replace_ap = False):
+def synthesize(anl,replace_ap = True):
+    np.save("z_spectrum.npy",anl["spectrum"])
+    np.save("z_aperiodicity.npy",anl["aperiodicity"])
+    np.save("z_f0.npy",anl["f0"])
+    np.save("z_vuv.npy",anl["vuv"])
+    np.save("z_orgf0.npy",anl["org_f0"])
     ap = anl["aperiodicity"]
     f0 = anl["f0"]
     if replace_ap:
@@ -52,6 +57,10 @@ def synthesize(anl,replace_ap = False):
                 ap[i,:] = unvoiced_ap
             elif vuv[i] != 1 and org_f0[i] == 0:
                 f0[i] = 0
+            elif vuv[i] == 0 or f0[i] < 40:
+                f0[i] = 0
+    np.save("z_mod_aper.npy",ap)
+    np.save("z_mod_f0.npy",f0)
 
     return pw.synthesize(f0,anl["spectrum"],ap,anl["rate"])
 
@@ -76,6 +85,7 @@ def convert_speech2sing(inputfile,musicxmlfile,outputfile,
     vuv0 = model.predict(inputfile)
     vuv1 = [mapper[x] for x in vuv0]
     opt = dtw.dtw(vuv1,notes,uv_val=2)
+    np.save("z_opt.npy",np.array(opt))
     N = len(pitches)
     sp = np.zeros((N*4,anl["spectrum"].shape[1]))
     ap = np.zeros((N*4,anl["aperiodicity"].shape[1]))
