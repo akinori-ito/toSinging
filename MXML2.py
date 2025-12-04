@@ -1,4 +1,5 @@
 import music21
+from music21 import pitch
 import pandas as pd
 
 def musicxml_to_df(musicxml_path, 
@@ -94,6 +95,14 @@ def musicxml_to_df(musicxml_path,
     # 7. Pandas DataFrameを作成し、CSVに出力
     df = pd.DataFrame(data, columns=["pitch", "duration","start","end"])    
     return df
+
+def transpose_pitch(df,trans):
+    pt = df["pitch"]
+    for i in range(len(pt)):
+        if pt[i] == "r":
+            continue
+        p = pitch.Pitch(pt[i])
+        df.loc[i,"pitch"] = p.transpose(trans).nameWithOctave
 
 if __name__ == "__main__":
     # 実行するMusicXMLファイルのパスを指定してください

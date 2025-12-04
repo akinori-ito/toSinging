@@ -8,6 +8,7 @@ from noteseq import noteseq
 import MXML2 as mxml
 import sys
 import vibration
+import stretch
 
 def analyze(wavfile=None,w=None,sr=None,fftspec=False):
     assert not (w is None) or not (wavfile is None), "Either w or wavfile should be specified"
@@ -35,11 +36,11 @@ def analyze(wavfile=None,w=None,sr=None,fftspec=False):
     return({"spectrum": sp, "aperiodicity": ap, "f0": f0, "rate": sr})
 
 def synthesize(anl,replace_ap = True):
-    np.save("z_spectrum.npy",anl["spectrum"])
-    np.save("z_aperiodicity.npy",anl["aperiodicity"])
-    np.save("z_f0.npy",anl["f0"])
-    np.save("z_vuv.npy",anl["vuv"])
-    np.save("z_orgf0.npy",anl["org_f0"])
+    #np.save("z_spectrum.npy",anl["spectrum"])
+    #np.save("z_aperiodicity.npy",anl["aperiodicity"])
+    #np.save("z_f0.npy",anl["f0"])
+    #np.save("z_vuv.npy",anl["vuv"])
+    #np.save("z_orgf0.npy",anl["org_f0"])
     ap = anl["aperiodicity"]
     f0 = anl["f0"]
     if replace_ap:
@@ -59,13 +60,14 @@ def synthesize(anl,replace_ap = True):
                 f0[i] = 0
             elif vuv[i] == 0 or f0[i] < 40:
                 f0[i] = 0
-    np.save("z_mod_aper.npy",ap)
-    np.save("z_mod_f0.npy",f0)
+    #np.save("z_mod_aper.npy",ap)
+    #np.save("z_mod_f0.npy",f0)
 
     return pw.synthesize(f0,anl["spectrum"],ap,anl["rate"])
 
 def convert_speech2sing(inputfile,musicxmlfile,outputfile,
                         modelfile,modelname,
+                        transpose=0,
                         bpm=None):
     print("Reading model...")
     model = vuv.VUVmodel(modelfile,modelname,3,16000) 
@@ -78,30 +80,40 @@ def convert_speech2sing(inputfile,musicxmlfile,outputfile,
         src_notes = mxml.musicxml_to_df(musicxmlfile)
     else:
         src_notes = mxml.musicxml_to_df(musicxmlfile,default_bpm=bpm,force_default_bpm=True)
+    if transpose != 0:
+        mxml.transpose_pitch(src_notes,transpose)
 
     notes,pitches,note_start,note_end = noteseq(src_notes)
     mapper = {0:0, 1:10, 2:2}
     print("Voiced/Unvoiced classification")
     vuv0 = model.predict(inputfile)
     vuv1 = [mapper[x] for x in vuv0]
+    print("Calculating alignment")
     opt = dtw.dtw(vuv1,notes,uv_val=2)
+    orgidx = []
     for i in range(len(note_start)):
-        print(f"note #{i}: start={opt[note_start[i]][0]} end={opt[note_end[i]][0]}")
-    np.save("z_opt.npy",np.array(opt))
+        start_pos = opt[note_start[i]][0]
+        end_pos = opt[note_end[i]][0]
+        #print(f"note #{i}: org_start={start_pos} org_end={end_pos} target_start={note_start[i]} target_end={note_end[i]}")
+        idx = stretch.stretch_idx(vuv0[start_pos:(end_pos+1)],note_end[i]-note_start[i]+1,start_pos)
+        #print(idx)
+        orgidx.extend(idx)
+    #print(orgidx)
+    #np.save("z_opt.npy",np.array(opt))
     N = len(pitches)
     sp = np.zeros((N*4,anl["spectrum"].shape[1]))
     ap = np.zeros((N*4,anl["aperiodicity"].shape[1]))
     f0 = np.zeros(N*4)
     vu = np.zeros(N*4)
     org_f0 = np.zeros(N*4)
-    print("Calculating alignment")
     for i in range(N):
+        idx = int(orgidx[i])
         for j in range(4):
-            sp[i*4+j,:] = anl["spectrum"][opt[i][0]*4+j,:]
-            ap[i*4+j,:] = anl["aperiodicity"][opt[i][0]*4+j,:]
+            sp[i*4+j,:] = anl["spectrum"][idx*4+j,:]
+            ap[i*4+j,:] = anl["aperiodicity"][idx*4+j,:]
             f0[i*4+j] = pitches[opt[i][1]]
             vu[i*4+j] = vuv0[opt[i][0]]
-            org_f0[i*4+j] = anl["f0"][opt[i][0]*4+j]
+            org_f0[i*4+j] = anl["f0"][idx*4+j]
     f0 = np.ascontiguousarray(vibration.add_dumping(f0))
     anl2 = {"f0":f0,"spectrum":sp, "aperiodicity":ap, "rate":sr, "vuv": vu, "org_f0": org_f0}
     print("Synthesizing singing voice")
@@ -120,6 +132,7 @@ outputfile = "output.wav"
 modelfile = "hubert_sad_20ms_model.pth"
 modelname = "facebook/hubert-base-ls960"
 bpm = None
+transpose = 0
 
 i = 1
 while i < len(sys.argv):
@@ -141,6 +154,9 @@ while i < len(sys.argv):
     elif sys.argv[i] == "-bpm":
         i += 1
         bpm = int(sys.argv[i])
+    elif sys.argv[i] == "-trans":
+        i += 1
+        transpose = int(sys.argv[i])
     else:
         print("Unknown option:",sys.argv[i])
         usage()
@@ -153,4 +169,4 @@ if musicxmlfile is None:
     print("No MusicXML file")
     usage()
 
-convert_speech2sing(inputfile,musicxmlfile,outputfile,modelfile,modelname,bpm=bpm)
+convert_speech2sing(inputfile,musicxmlfile,outputfile,modelfile,modelname,transpose=transpose,bpm=bpm)

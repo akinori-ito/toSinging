@@ -1,16 +1,10 @@
 # DTW between one-dimensional signals
 import numpy as np
 
-def ifpenalty(b,i,j,b_val):
-    if b[i,j] == b_val:
-        return 1.0
-    return 0.0
-
 def dtw(sp,score,uv_val=-1):
     # sp: list or 1-d array
     # score: list or 1-d array
     # if sp[i] == uv_val, this frame should not be shrunk/extended
-    PENALTY = 1.0
     N = len(sp)
     M = len(score)
     #print("N=",N," M=",M)
@@ -29,11 +23,11 @@ def dtw(sp,score,uv_val=-1):
                 continue
             if j == 1:
                 if i == 0:
-                    g[i,j] = v+g[i,j-1]+ifpenalty(b,i,j-1,2)*PENALTY
+                    g[i,j] = v+g[i,j-1]
                     b[i,j] = 2
                 if i == 1:
                     g0 = v+g[i-1,j-1]
-                    g2 = v+g[i,j-1]+ifpenalty(b,i,j-1,2)*PENALTY
+                    g2 = v+g[i,j-1]
                     if g0 <= g2:
                         g[i,j] = g0
                         b[i,j] = 0
@@ -49,19 +43,19 @@ def dtw(sp,score,uv_val=-1):
                 continue
             if i == 1:
                 g0 = v+g[i-1,j-1]
-                g2 = v+g[i,j-1]+ifpenalty(b,i,j-1,2)*PENALTY
+                g2 = v+g[i,j-1]
                 if g0 <= g2:
                     g[i,j] = g0
                     b[i,j] = 0
                 else:
                     g[i,j] = g2
                     b[i,j] = 2
-                g[i,j] = v+g[i-1,j]+ifpenalty(b,i-1,j,1)*PENALTY
+                g[i,j] = v+g[i-1,j]
                 b[i,j] = 1
             else: # i >= 2, j >= 2
                 g0 = v+g[i-1,j-1]
-                g1 = v+g[i-1,j]+ifpenalty(b,i-2,j-1,1)*PENALTY
-                g2 = v+g[i,j-1]+ifpenalty(b,i,j-1,2)*PENALTY
+                g1 = v+g[i-1,j]
+                g2 = v+g[i,j-1]
                 if sp[i] == uv_val:
                     if g0 <= g1:
                         g[i,j] = g0
